@@ -1,16 +1,15 @@
-# videx
+Here’s a simple README file for your VidEX project:
 
-A new Flutter project.
+---
 
-## Getting Started
+# VidEX 🎬 
+VidEX is a simple video recognition app designed to identify movies based on short video clips. Just like Shazam recognizes songs, VidEX enables users to capture a 10-second video clip, which is then analyzed against a database of movies. If a match is found, the app provides details about the identified movie.  
 
-This project is a starting point for a Flutter application.
+## Features  
+- Capture or upload a short video clip  
+- Scan and match against a movie database  
+- Get movie details instantly  
+- Fast and efficient recognition  
 
-A few resources to get you started if this is your first Flutter project:
-
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
-
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+## Status  
+The front-end of VidEX is fully developed, and backend integration will be completed soon.
