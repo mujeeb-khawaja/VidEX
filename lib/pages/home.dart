@@ -2,9 +2,11 @@ import 'dart:io';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
 
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({Key? key}) : super(key: key);
+  const HomeScreen({super.key});
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -13,6 +15,8 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   VideoPlayerController? _controller;
   File? _videoFile;
+  bool isLoading = false; // To track the loading state
+  Map<String, dynamic>? _matchResult;
 
   // Pick video from FilePicker
   Future<void> _pickVideo() async {
@@ -32,11 +36,12 @@ class _HomeScreenState extends State<HomeScreen> {
         await tempController.initialize();
         Duration videoDuration = tempController.value.duration;
 
-        if (videoDuration.inSeconds > 10) {
+        // Modify the duration check to ensure it's between 10 and 30 seconds
+        if (videoDuration.inSeconds < 10 || videoDuration.inSeconds > 30) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text(
-                'The video is more than 10 seconds. Please select a shorter video.',
+                'Please select a video between 10 and 30 seconds.',
               ),
             ),
           );
@@ -44,12 +49,14 @@ class _HomeScreenState extends State<HomeScreen> {
         } else {
           setState(() {
             _videoFile = videoFile;
+            isLoading = true;
+            _matchResult = null;                // clear previous result
             _controller = VideoPlayerController.file(videoFile)
-              ..initialize().then((_) {
-                setState(() {});
-              });
+              ..initialize().then((_) => setState(() {}));
           });
-          tempController.dispose();
+          // wait for the match call to finish before updating UI
+          await matchClip(videoFile);
+
         }
       }
     }
@@ -101,15 +108,15 @@ class _HomeScreenState extends State<HomeScreen> {
                       child: Container(
                         width: 170,
                         height: 170,
-                        decoration: BoxDecoration(
+                        decoration: const BoxDecoration(
                           shape: BoxShape.circle,
-                          gradient: const LinearGradient(
+                          gradient: LinearGradient(
                             colors: [Colors.transparent, Colors.black26],
                             begin: Alignment.topLeft,
                             end: Alignment.bottomRight,
                           ),
                         ),
-                        child: Center(
+                        child: const Center(
                           child: Text(
                             'VidEx',
                             style: TextStyle(
@@ -178,9 +185,28 @@ class _HomeScreenState extends State<HomeScreen> {
                             ],
                           ),
                           // Show controls if there's an initialized video
-                          if (_controller != null &&
+                          if (_controller != null && 
                               _controller!.value.isInitialized)
-                            VideoControls(controller: _controller!)
+                            VideoControls(controller: _controller!),
+
+                            // In build() method:
+                            if (_matchResult != null)
+                              Container(
+                                padding: const EdgeInsets.all(16),
+                                child: Column(
+                                  children: [
+                                    if (_matchResult!['movie_name'] != null)
+                                      Text('Name: ${_matchResult!['movie_name']}',
+                                          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                                    if (_matchResult!['genre'] != null)
+                                      Text('Genre: ${_matchResult!['genre']}',
+                                          style: const TextStyle(fontSize: 16)),
+                                    if (_matchResult!['release_year'] != null)
+                                      Text('Year: ${_matchResult!['release_year']}',
+                                          style: const TextStyle(fontSize: 16)),
+                                  ],
+                                ),
+                              ),
                         ],
                       ),
                     ),
@@ -195,34 +221,55 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildVideoArea() {
+    if (isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
     if (_videoFile == null) {
       return const Padding(
         padding: EdgeInsets.symmetric(horizontal: 16.0),
-        child: Text(
-          'No video selected',
-          style: TextStyle(fontSize: 16),
+        child: Text('No video selected', style: TextStyle(fontSize: 16)),
+      );
+    }
+    if (_controller != null && _controller!.value.isInitialized) {
+      return AspectRatio(
+        aspectRatio: _controller!.value.aspectRatio,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(12),
+          child: VideoPlayer(_controller!),
         ),
       );
-    } else {
-      if (_controller != null && _controller!.value.isInitialized) {
-        return AspectRatio(
-          aspectRatio: _controller!.value.aspectRatio,
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(12),
-            child: VideoPlayer(_controller!),
-          ),
-        );
-      } else {
-        return const CircularProgressIndicator();
-      }
     }
+    return const SizedBox.shrink();
   }
+
+  // Function to match the clip against stored movie embeddings
+  Future<void> matchClip(File videoFile) async {
+    final uri = Uri.parse('http://192.168.1.7:8000/match_clip/'); // Backend URL
+    var request = http.MultipartRequest('POST', uri);
+
+    // Attach the selected video file
+    request.files.add(await http.MultipartFile.fromPath('file', videoFile.path));
+
+    var response = await request.send();
+    var responseData = await response.stream.bytesToString();
+    var data = json.decode(responseData);
+
+    setState(() {
+      isLoading = false;  // stop the spinner
+      if (response.statusCode == 200 && data['status'] == 'success') {
+        _matchResult = data['data'];   // save the match
+      } else {
+        _matchResult = null;           // no match
+      }
+    });
+  }
+
 }
 
 class VideoControls extends StatelessWidget {
   final VideoPlayerController controller;
 
-  const VideoControls({Key? key, required this.controller}) : super(key: key);
+  const VideoControls({super.key, required this.controller});
 
   @override
   Widget build(BuildContext context) {
