@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:videx/pages/result_page.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -184,29 +185,7 @@ class _HomeScreenState extends State<HomeScreen> {
                               ),
                             ],
                           ),
-                          // Show controls if there's an initialized video
-                          if (_controller != null && 
-                              _controller!.value.isInitialized)
-                            VideoControls(controller: _controller!),
-
-                            // In build() method:
-                            if (_matchResult != null)
-                              Container(
-                                padding: const EdgeInsets.all(16),
-                                child: Column(
-                                  children: [
-                                    if (_matchResult!['movie_name'] != null)
-                                      Text('Name: ${_matchResult!['movie_name']}',
-                                          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                                    if (_matchResult!['genre'] != null)
-                                      Text('Genre: ${_matchResult!['genre']}',
-                                          style: const TextStyle(fontSize: 16)),
-                                    if (_matchResult!['release_year'] != null)
-                                      Text('Year: ${_matchResult!['release_year']}',
-                                          style: const TextStyle(fontSize: 16)),
-                                  ],
-                                ),
-                              ),
+                            
                         ],
                       ),
                     ),
@@ -244,26 +223,42 @@ class _HomeScreenState extends State<HomeScreen> {
 
   // Function to match the clip against stored movie embeddings
   Future<void> matchClip(File videoFile) async {
-    final uri = Uri.parse('http://192.168.1.7:8000/match_clip/'); // Backend URL
-    var request = http.MultipartRequest('POST', uri);
-
-    // Attach the selected video file
-    request.files.add(await http.MultipartFile.fromPath('file', videoFile.path));
+    final uri = Uri.parse('http://192.168.1.7:8000/match_clip/');
+    var request = http.MultipartRequest('POST', uri)
+      ..files.add(await http.MultipartFile.fromPath('file', videoFile.path));
 
     var response = await request.send();
     var responseData = await response.stream.bytesToString();
     var data = json.decode(responseData);
 
+    // 1) Update the loading state and save result
     setState(() {
-      isLoading = false;  // stop the spinner
+      isLoading = false;
       if (response.statusCode == 200 && data['status'] == 'success') {
-        _matchResult = data['data'];   // save the match
+        _matchResult = data['data'];
       } else {
-        _matchResult = null;           // no match
+        _matchResult = null;
       }
     });
-  }
 
+    // 2) If we got a match, navigate to the ResultPage
+    if (_matchResult != null) {
+      // ignore: use_build_context_synchronously
+      await Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => ResultPage(result: _matchResult!),
+        ),
+      );
+      // 3) When the user returns, reset everything
+      setState(() {
+        _videoFile = null;
+        _controller?.dispose();
+        _controller = null;
+        _matchResult = null;
+        isLoading = false;
+      });
+    }
+  }
 }
 
 class VideoControls extends StatelessWidget {
