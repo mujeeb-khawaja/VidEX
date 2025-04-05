@@ -1,0 +1,7 @@
+Use
+
+uvicorn main:app --host 0.0.0.0 --port 8000
+
+to allow connections from both your laptop (desktop app) and your Flutter app (phone).
+
+Use http://localhost:8000 (or 127.0.0.1:8000) on your laptop and http://[YOUR_LAPTOP_IP]:8000 on your phone.
